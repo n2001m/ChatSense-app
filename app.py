@@ -10,7 +10,7 @@ loaded_svm_model = joblib.load("svm_model_3sec_allF.pkl")
 loaded_scaler = joblib.load("scaler_3sec_allF.pkl")
 
 def preprocess_audio(audio_path, target_sr=16000):
-    data, _ = librosa.load(audio_path, sr=target_sr, backend='soundfile')
+    data, _ = librosa.load(audio_path, sr=target_sr)
     trimmed_data, _ = librosa.effects.trim(data)
     return trimmed_data
 
