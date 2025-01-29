@@ -1,0 +1,8 @@
+streamlit
+sounddevice
+numpy
+librosa
+joblib
+scikit-learn
+pandas
+
