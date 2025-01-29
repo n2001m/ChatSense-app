@@ -47,7 +47,7 @@ def predict_emotion_segments(segments):
         predicted_labels.append(predicted_label[0])
     return predicted_labels
 
-st.title("Audio Emotion Recognition")
+st.title("ChatSense: Speech Emotion Recognition")
 uploaded_file = st.file_uploader("Upload an audio file", type=["wav", "mp3", "m4a", "ogg", "flac"])
 
 if uploaded_file is not None:
