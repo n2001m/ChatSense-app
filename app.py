@@ -66,7 +66,7 @@ if uploaded_file is not None:
     else:
         segments = segment_audio(preprocessed_audio)
         predicted_labels = predict_emotion_segments(segments)
-        df = {f"Segment {i+1}": label for i, label in enumerate(predicted_labels)}
         st.write("### Predicted Emotions per Segment:")
-        st.write(df)
+        for i, label in enumerate(predicted_labels):
+            st.write(f"- Segment {i+1}: {label}")
     os.remove(tmp_path)
