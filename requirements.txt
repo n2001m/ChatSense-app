@@ -4,3 +4,5 @@ numpy
 joblib
 scikit-learn
 soundfile
+libsndfile1
+ffmpeg
