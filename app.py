@@ -77,7 +77,7 @@ class AudioTransformer(VideoTransformerBase):
 
 # Initialize the webrtc_streamer with AudioTransformer
 audio_transformer = AudioTransformer()
-webrtc_streamer(key="audio-recorder", video_transformer_factory=lambda: audio_transformer)
+webrtc_streamer(key="audio-recorder", video_processor_factory=lambda: audio_transformer)
 
 # Record audio functionality
 if st.button('Start Recording'):
