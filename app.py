@@ -4,6 +4,9 @@ import numpy as np
 import joblib
 import tempfile
 from streamlit_webrtc import webrtc_streamer, VideoTransformerBase
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning, module="sklearn")
+
 
 # Load models
 loaded_svm_model = joblib.load("svm_model_3sec_allF.pkl")
