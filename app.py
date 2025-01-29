@@ -1,74 +1,96 @@
 import streamlit as st
-import sounddevice as sd
-import numpy as np
 import librosa
+import numpy as np
 import joblib
 import tempfile
-import wave
+import os
+import sounddevice as sd
+import wavio
 
-# Load SVM model and scaler
+# Load models
 loaded_svm_model = joblib.load("svm_model_3sec_allF.pkl")
 loaded_scaler = joblib.load("scaler_3sec_allF.pkl")
 
-
 # Function to preprocess audio
-def preprocess_audio(data, sr=16000):
+def preprocess_audio(audio_path, target_sr=16000):
+    data, original_sr = librosa.load(audio_path, sr=target_sr)
     trimmed_data, _ = librosa.effects.trim(data)
-    return trimmed_data
+    stft = librosa.stft(trimmed_data)
+    noise_estimation = np.mean(np.abs(stft), axis=1)
+    clean_stft = np.maximum(np.abs(stft) - 2 * noise_estimation[:, np.newaxis], 0.0)
+    clean_data = librosa.istft(clean_stft)
+    return clean_data
 
-
-# Function to segment audio
-def segment_audio(audio, sr=16000, segment_size=3, overlap=0.5):
-    segment_size_samples = int(segment_size * sr)
-    hop_length = int(segment_size_samples * (1 - overlap))
-
+# Function to segment audio with overlap
+def segment_audio(audio, segment_size=3, overlap=0.5):
+    segment_size_samples = int(segment_size * 16000)  # Convert segment size to samples
+    hop_length = int(segment_size_samples * (1 - overlap))  # Calculate hop length
     if len(audio) <= segment_size_samples:
-        return [audio]
-
-    segments = [audio[i:i + segment_size_samples]
-                for i in range(0, len(audio) - segment_size_samples + 1, hop_length)]
+        segments = [audio]
+    else:
+        segments = []
+        for i in range(0, len(audio) - segment_size_samples + 1, hop_length):
+            segment = audio[i:i + segment_size_samples]
+            segments.append(segment)
     return segments
 
-
 # Function to extract features
-def extract_features(audio, sr=16000):
-    mfcc = librosa.feature.mfcc(y=audio, sr=sr)
+def extract_features(audio):
+    sampling_rate = 16000
+    mfcc = librosa.feature.mfcc(y=audio, sr=sampling_rate)
     mfcc_mean = np.mean(mfcc, axis=1)
-    energy = np.mean(librosa.feature.rms(y=audio))
-    zcr = np.mean(librosa.feature.zero_crossing_rate(audio))
-    return np.concatenate([mfcc_mean, [energy, zcr]])
+    speech_rate = librosa.feature.spectral_centroid(y=audio, sr=sampling_rate)
+    speech_rate_mean = np.mean(speech_rate)
+    energy = librosa.feature.rms(y=audio)
+    energy_mean = np.mean(energy)
+    pitch = librosa.yin(y=audio, fmin=8, fmax=600)
+    pitch_mean = np.mean(pitch)
+    zcr = librosa.feature.zero_crossing_rate(audio)
+    zcr_mean = np.mean(zcr)
+    mel_spec = librosa.feature.melspectrogram(y=audio, sr=sampling_rate)
+    kurtosis = librosa.feature.mfcc(S=librosa.power_to_db(mel_spec))
+    kurtosis_mean = np.mean(kurtosis)
+    return np.concatenate([mfcc_mean, [speech_rate_mean, energy_mean, pitch_mean, zcr_mean, kurtosis_mean]])
 
-
-# Function to predict emotion
-def predict_emotion(segments):
+# Function to predict emotion label for each segment
+def predict_emotion_segments(segments, loaded_svm_model, loaded_scaler):
     predicted_labels = []
     for segment in segments:
-        features = extract_features(segment)
-        standardized_features = loaded_scaler.transform(features.reshape(1, -1))
+        segment_features = extract_features(segment)
+        standardized_features = loaded_scaler.transform(segment_features.reshape(1, -1))
         predicted_label = loaded_svm_model.predict(standardized_features)
-        predicted_labels.append(predicted_label[0])
+        predicted_labels.append(predicted_label)
     return predicted_labels
 
-
-# Streamlit UI
-st.title("Real-Time Audio Emotion Recognition")
-st.write("Record an audio clip and get emotion predictions for each segment.")
-
-# Record Audio
-duration = st.slider("Select Recording Duration (seconds)", 1, 10, 3)
-if st.button("Record Audio"):
+# Function to record audio from microphone
+def record_audio(duration=3, fs=16000):
     st.write("Recording...")
-    fs = 16000
-    recording = sd.rec(int(duration * fs), samplerate=fs, channels=1, dtype='float32')
+    audio_data = sd.rec(int(duration * fs), samplerate=fs, channels=1, dtype='float32')
     sd.wait()
-    st.write("Recording complete!")
+    return audio_data.flatten()
 
-    # Process and Predict
-    audio_data = recording.flatten()
-    preprocessed_audio = preprocess_audio(audio_data, sr=fs)
-    segments = segment_audio(preprocessed_audio, sr=fs)
-    predicted_labels = predict_emotion(segments)
+# Streamlit App
+st.title('Emotion Recognition from Audio')
+st.write("Record an audio clip and we'll predict the emotions for each segment.")
+
+# Record audio
+if st.button('Start Recording'):
+    audio_data = record_audio(duration=3)
+    st.write("Recording complete!")
+    # Save audio file temporarily
+    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.wav')
+    wavio.write(temp_file.name, 16000, audio_data.astype(np.int16))
+
+    # Preprocess audio and make predictions
+    preprocessed_audio = preprocess_audio(temp_file.name)
+    segments = segment_audio(preprocessed_audio)
+    predicted_labels = predict_emotion_segments(segments, loaded_svm_model, loaded_scaler)
+    predicted_labels = [label[0] for label in predicted_labels]
 
     # Display results
-    st.write("Predicted Emotions for each segment:")
-    st.table({"Segment": list(range(1, len(predicted_labels) + 1)), "Emotion": predicted_labels})
+    st.write("Predicted emotions for each segment:")
+    for i, label in enumerate(predicted_labels):
+        st.write(f"Segment {i+1}: {label}")
+
+    # Option to play back the recorded audio
+    st.audio(temp_file.name)
