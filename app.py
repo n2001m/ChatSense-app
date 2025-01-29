@@ -3,8 +3,6 @@ import librosa
 import numpy as np
 import joblib
 import tempfile
-import os
-import io
 from streamlit_webrtc import webrtc_streamer, VideoTransformerBase
 
 # Load models
@@ -66,27 +64,29 @@ def predict_emotion_segments(segments, loaded_svm_model, loaded_scaler):
 st.title('Emotion Recognition from Audio')
 st.write("Record an audio clip and we'll predict the emotions for each segment.")
 
-# Audio recording functionality using streamlit_webrtc
+# Class to handle the audio transformer
 class AudioTransformer(VideoTransformerBase):
     def __init__(self):
         self.audio_data = None
 
     def transform(self, frame):
-        # Here we can capture audio and process it later
-        self.audio_data = frame
+        # Capture audio frame when the recording starts
+        if frame is not None:
+            self.audio_data = frame
         return frame
 
-webrtc_streamer(key="audio-recorder", video_transformer_factory=AudioTransformer)
+# Initialize the webrtc_streamer with AudioTransformer
+audio_transformer = AudioTransformer()
+webrtc_streamer(key="audio-recorder", video_transformer_factory=lambda: audio_transformer)
 
-# Record audio using streamlit_webrtc
+# Record audio functionality
 if st.button('Start Recording'):
-    # Save audio data to a file or process it directly
-    if audio_data is not None:
-        # Assuming audio_data contains the audio in a usable format
+    if audio_transformer.audio_data is not None:
+        # Save audio data to a temporary file
         temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.wav')
         with open(temp_file.name, "wb") as f:
-            f.write(audio_data)
-        
+            f.write(audio_transformer.audio_data)
+
         # Preprocess audio and make predictions
         preprocessed_audio = preprocess_audio(temp_file.name)
         segments = segment_audio(preprocessed_audio)
