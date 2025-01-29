@@ -1,6 +1,8 @@
 streamlit
-librosa
-joblib
-numpy
-scipy
 streamlit-webrtc
+numpy
+joblib
+librosa
+soundfile
+av
+matplotlib
