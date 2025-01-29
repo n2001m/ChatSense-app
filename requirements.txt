@@ -1,7 +1,6 @@
 streamlit
 librosa
-sounddevice
-wavio
 joblib
 numpy
 scipy
+streamlit-webrtc
